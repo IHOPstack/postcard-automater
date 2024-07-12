@@ -96,6 +96,9 @@ def calculate_optimal_layout(card_width, card_height, paper_width, paper_height,
         'rotated': rotated
     }
 def create_postcard_pdf(image_path, output_pdf, paper_size_name):
+    if not os.path.exists(image_path):
+        raise FileNotFoundError(f"Image file not found: {image_path}")
+
     with Image.open(image_path) as img:
         original_card_width = img.width * 25.4 / 300
         original_card_height = img.height * 25.4 / 300

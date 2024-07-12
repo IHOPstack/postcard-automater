@@ -24,10 +24,9 @@ class PreviewGenerator(QThread):
     preview_ready = pyqtSignal(str)  # Changed to emit a string (PDF path)
     error_occurred = pyqtSignal(str)
 
-    def __init__(self, front_image, back_image, paper_size):
+    def __init__(self, image_path, paper_size):
         super().__init__()
-        self.front_image = front_image
-        self.back_image = back_image
+        self.image_path = image_path
         self.paper_size = paper_size
 
     def run(self):

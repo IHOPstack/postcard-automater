@@ -171,27 +171,26 @@ class PostcardApp(QMainWindow):
         if self.file_list.currentItem():
             selected_file = self.file_list.currentItem().text()
             if selected_file in [os.path.basename(f) for f in self.front_images]:
-                front_image = [f for f in self.front_images if os.path.basename(f) == selected_file][0]
-                back_image = None
+                image_path = next(f for f in self.front_images if os.path.basename(f) == selected_file)
             else:
-                front_image = None
-                back_image = [f for f in self.back_images if os.path.basename(f) == selected_file][0]
+                image_path = next(f for f in self.back_images if os.path.basename(f) == selected_file)
         elif self.front_images:
-            front_image = self.front_images[0]
-            back_image = self.back_images[0] if self.back_images else None
+            image_path = self.front_images[0]
+        elif self.back_images:
+            image_path = self.back_images[0]
         else:
             return
 
-        paper_size = self.paper_size_combo.currentText()
-        
-        if self.preview_generator is not None and self.preview_generator.isRunning():
-            self.preview_generator.terminate()
-        
-        self.preview_generator = PreviewGenerator(front_image, back_image, paper_size)
-        self.preview_generator.preview_ready.connect(self.set_preview)
-        self.preview_generator.error_occurred.connect(self.show_error)
-        self.preview_generator.start()
+        if image_path:
+            self.preview_view.load_pdf(self.create_temp_pdf(image_path))
 
+    def create_temp_pdf(self, image_path):
+        temp_pdf = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
+        temp_pdf.close()
+        paper_size = self.paper_size_combo.currentText()
+        create_postcard_pdf(image_path, temp_pdf.name, paper_size)
+        return temp_pdf.name
+    
     def show_error(self, error_message):
         QMessageBox.critical(self, "Error", f"An error occurred while generating the preview: {error_message}")
 
