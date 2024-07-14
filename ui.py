@@ -36,30 +36,58 @@ class PdfPreviewWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.layout = QHBoxLayout(self)
-        self.front_label = QLabel("No front image selected")
-        self.back_label = QLabel("No back image selected")
-        self.front_label.setAlignment(Qt.AlignCenter)
-        self.back_label.setAlignment(Qt.AlignCenter)
-        self.layout.addWidget(self.front_label)
-        self.layout.addWidget(self.back_label)
-        self.front_pdf_path = None
-        self.back_pdf_path = None
+        self.front_viewer = PdfViewer()
+        self.back_viewer = PdfViewer()
+        self.layout.addWidget(self.front_viewer)
+        self.layout.addWidget(self.back_viewer)
 
-    def load_pdfs(self, front_pdf_path=None, back_pdf_path=None):
-        self.front_pdf_path = front_pdf_path
-        self.back_pdf_path = back_pdf_path
+    def load_pdfs(self, front_pdf_paths=None, back_pdf_paths=None):
+        self.front_viewer.load_pdfs(front_pdf_paths)
+        self.back_viewer.load_pdfs(back_pdf_paths)
+
+class PdfViewer(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.layout = QHBoxLayout(self)
+        self.prev_button = QPushButton("<")
+        self.next_button = QPushButton(">")
+        self.image_label = QLabel("No image selected")
+        self.image_label.setAlignment(Qt.AlignCenter)
+        
+        self.layout.addWidget(self.prev_button)
+        self.layout.addWidget(self.image_label, 1)  # Give the image label more space
+        self.layout.addWidget(self.next_button)
+
+        self.pdf_paths = []
+        self.current_page = 0
+
+        self.prev_button.clicked.connect(self.show_previous)
+        self.next_button.clicked.connect(self.show_next)
+
+    def load_pdfs(self, pdf_paths):
+        self.pdf_paths = pdf_paths or []
+        self.current_page = 0
         self.update_preview()
 
     def update_preview(self):
-        self.update_side(self.front_label, self.front_pdf_path, "No front image selected")
-        self.update_side(self.back_label, self.back_pdf_path, "No back image selected")
-
-    def update_side(self, label, pdf_path, default_text):
-        if pdf_path and isinstance(pdf_path, str) and os.path.exists(pdf_path):
-            pixmap = self.get_pdf_pixmap(pdf_path, label.width(), label.height())
-            label.setPixmap(pixmap)
+        if self.pdf_paths and 0 <= self.current_page < len(self.pdf_paths):
+            pixmap = self.get_pdf_pixmap(self.pdf_paths[self.current_page], self.image_label.width(), self.image_label.height())
+            self.image_label.setPixmap(pixmap)
         else:
-            label.setText(default_text)
+            self.image_label.setText("No image selected")
+        
+        self.prev_button.setEnabled(self.current_page > 0)
+        self.next_button.setEnabled(self.current_page < len(self.pdf_paths) - 1)
+
+    def show_previous(self):
+        if self.current_page > 0:
+            self.current_page -= 1
+            self.update_preview()
+
+    def show_next(self):
+        if self.current_page < len(self.pdf_paths) - 1:
+            self.current_page += 1
+            self.update_preview()
 
     def get_pdf_pixmap(self, pdf_path, max_width, max_height):
         doc = fitz.open(pdf_path)
@@ -85,7 +113,7 @@ class PdfPreviewWidget(QWidget):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        self.update_preview()
+        self.update_preview()  # Update the preview when the widget is resized
 
     def sizeHint(self):
         return QSize(800, 400)  # Suggest a default size
@@ -94,6 +122,9 @@ class PostcardApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.images = []
+        self.front_images = []
+        self.back_images = []
+
         self.preview_generator = None
         self.initUI()
         self.setMinimumSize(1000, 600)  # Adjust these values as needed
@@ -156,12 +187,22 @@ class PostcardApp(QMainWindow):
             self.update_file_list()
 
     def update_file_list(self):
-        self.file_list.clear()
-        for image in self.images:
+        current_count = self.file_list.count()
+        for image in self.images[current_count:]:
             item = ImageListWidgetItem(image, self.file_list)
             item.image_widget.front_checkbox.stateChanged.connect(self.update_preview)
             item.image_widget.back_checkbox.stateChanged.connect(self.update_preview)
+            
+            # Auto-select if no images are currently selected
+            if not self.front_images and not self.back_images:
+                item.image_widget.front_checkbox.setChecked(True)
+            elif self.front_images and not self.back_images:
+                item.image_widget.back_checkbox.setChecked(True)
+            elif not self.front_images and self.back_images:
+                item.image_widget.front_checkbox.setChecked(True)
+
         self.file_list.setMinimumWidth(400)  # Adjust this value as needed
+        self.update_preview()
 
     def generate_pdfs(self):
         if not self.images:
@@ -217,22 +258,20 @@ class PostcardApp(QMainWindow):
             QMessageBox.information(self, "Success", f"{len(paired_pdfs)} PDFs paired successfully")
 
     def update_preview(self):
-        front_image = None
-        back_image = None
+        self.front_images.clear()
+        self.back_images.clear()
         for index in range(self.file_list.count()):
             item = self.file_list.item(index)
             image_widget = self.file_list.itemWidget(item)
-            if image_widget.front_checkbox.isChecked() and not front_image:
-                front_image = image_widget.image_path
-            if image_widget.back_checkbox.isChecked() and not back_image:
-                back_image = image_widget.image_path
-            if front_image and back_image:
-                break
+            if image_widget.front_checkbox.isChecked():
+                self.front_images.append(image_widget.image_path)
+            if image_widget.back_checkbox.isChecked():
+                self.back_images.append(image_widget.image_path)
 
-        front_pdf = self.create_temp_pdf(front_image)
-        back_pdf = self.create_temp_pdf(back_image)
+        front_pdfs = [self.create_temp_pdf(img) for img in self.front_images]
+        back_pdfs = [self.create_temp_pdf(img) for img in self.back_images]
 
-        self.preview_view.load_pdfs(front_pdf, back_pdf)
+        self.preview_view.load_pdfs(front_pdfs, back_pdfs)
 
     def create_temp_pdf(self, image_path):
         if not image_path:
