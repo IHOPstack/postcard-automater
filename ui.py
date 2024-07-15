@@ -1,14 +1,45 @@
 import os
 import tempfile
 
-from PyQt5.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QHBoxLayout, QWidget, QFileDialog, QComboBox, QLabel, QListWidget, QMessageBox, QListWidgetItem, QCheckBox, QSplitter
+from PyQt5.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QHBoxLayout, QWidget, QFileDialog, QComboBox, QLabel, QListWidget, QMessageBox, QListWidgetItem, QCheckBox, QSplitter, QFrame
 from PyQt5.QtCore import Qt, QSize
-from PyQt5.QtGui import QPixmap, QImage, QPainter, QPen
+from PyQt5.QtGui import QPixmap, QImage, QPainter, QPen, QDragEnterEvent, QDropEvent
 import fitz
 
 from pdf_operations import pair_pdfs, create_postcard_pdf
 from image_processing import PreviewGenerator
 from config import PAPER_SIZES
+
+def is_supported_image(file_path: str) -> bool:
+    supported_extensions = ('.png', '.jpg', '.jpeg', '.bmp')
+    return file_path.lower().endswith(supported_extensions)
+
+class ImageListWidget(QListWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAcceptDrops(True)
+        self.setDragDropMode(QListWidget.DragDrop)
+
+        # Add header item
+        header_item = QListWidgetItem(self)
+        header_widget = QWidget()
+        header_layout = QHBoxLayout(header_widget)
+        header_layout.setContentsMargins(5, 2, 5, 2)
+        self.select_all_front = QCheckBox("Front")
+        self.select_all_back = QCheckBox("Back")
+        header_layout.addWidget(self.select_all_front)
+        header_layout.addWidget(self.select_all_back)
+        header_layout.addWidget(QLabel("File Name"))
+        header_layout.addStretch()
+        header_item.setSizeHint(header_widget.sizeHint())
+        self.setItemWidget(header_item, header_widget)
+
+    def add_item(self, image_path):
+        item = QListWidgetItem(self)
+        image_widget = ImageListItem(image_path)
+        item.setSizeHint(image_widget.sizeHint())
+        self.setItemWidget(item, image_widget)
+        return image_widget  # Return the widget instead of the item
 
 class ImageListItem(QWidget):
     def __init__(self, image_path, parent=None):
@@ -24,13 +55,6 @@ class ImageListItem(QWidget):
         layout.addWidget(self.back_checkbox)
         layout.addWidget(self.name_label)
         layout.addStretch()
-
-class ImageListWidgetItem(QListWidgetItem):
-    def __init__(self, image_path, list_widget):
-        super().__init__(list_widget)
-        self.image_widget = ImageListItem(image_path)
-        list_widget.setItemWidget(self, self.image_widget)
-        self.setFlags(self.flags() | Qt.ItemIsSelectable | Qt.ItemIsEnabled)
 
 class PdfPreviewWidget(QWidget):
     def __init__(self, parent=None):
@@ -63,6 +87,15 @@ class PdfViewer(QWidget):
 
         self.prev_button.clicked.connect(self.show_previous)
         self.next_button.clicked.connect(self.show_next)
+
+        self.setAcceptDrops(True)
+
+    def dragEnterEvent(self, event: QDragEnterEvent):
+        if event.mimeData().hasUrls() and any(is_supported_image(url.toLocalFile()) for url in event.mimeData().urls()):
+            event.acceptProposedAction()
+
+    def dropEvent(self, event: QDropEvent):
+        self.parent().viewerDropEvent(event, is_front=(self == self.parent().front_viewer))
 
     def load_pdfs(self, pdf_paths):
         self.pdf_paths = pdf_paths or []
@@ -160,7 +193,7 @@ class PostcardApp(QMainWindow):
         right_layout = QVBoxLayout(right_widget)
 
         self.preview_view = PdfPreviewWidget()
-        self.file_list = QListWidget()
+        self.file_list = ImageListWidget()
 
         splitter = QSplitter(Qt.Vertical)
         splitter.addWidget(self.preview_view)
@@ -177,8 +210,28 @@ class PostcardApp(QMainWindow):
         self.select_images_button.clicked.connect(self.select_images)
         self.generate_button.clicked.connect(self.generate_pdfs)
         self.pair_button.clicked.connect(self.pair_pdfs)
-        self.file_list.itemClicked.connect(self.update_preview)
         self.paper_size_combo.currentIndexChanged.connect(self.update_preview)
+
+        self.file_list.select_all_front.stateChanged.connect(self.select_all_front_images)
+        self.file_list.select_all_back.stateChanged.connect(self.select_all_back_images)
+
+        # Connect checkboxes to functions
+        self.file_list.select_all_front.stateChanged.connect(self.select_all_front_images)
+        self.file_list.select_all_back.stateChanged.connect(self.select_all_back_images)
+
+    def select_all_front_images(self, state):
+        for index in range(1, self.file_list.count()):  # Start from 1 to skip header
+            item = self.file_list.item(index)
+            image_widget = self.file_list.itemWidget(item)
+            image_widget.front_checkbox.setChecked(state == Qt.Checked)
+        self.update_preview()
+
+    def select_all_back_images(self, state):
+        for index in range(1, self.file_list.count()):  # Start from 1 to skip header
+            item = self.file_list.item(index)
+            image_widget = self.file_list.itemWidget(item)
+            image_widget.back_checkbox.setChecked(state == Qt.Checked)
+        self.update_preview()
 
     def select_images(self):
         files, _ = QFileDialog.getOpenFileNames(self, "Select Images", "", "Image Files (*.png *.jpg *.bmp)")
@@ -187,19 +240,19 @@ class PostcardApp(QMainWindow):
             self.update_file_list()
 
     def update_file_list(self):
-        current_count = self.file_list.count()
+        current_count = self.file_list.count() - 1  # Subtract 1 to account for header
         for image in self.images[current_count:]:
-            item = ImageListWidgetItem(image, self.file_list)
-            item.image_widget.front_checkbox.stateChanged.connect(self.update_preview)
-            item.image_widget.back_checkbox.stateChanged.connect(self.update_preview)
+            image_widget = self.file_list.add_item(image)
+            image_widget.front_checkbox.stateChanged.connect(self.update_preview)
+            image_widget.back_checkbox.stateChanged.connect(self.update_preview)
             
             # Auto-select if no images are currently selected
             if not self.front_images and not self.back_images:
-                item.image_widget.front_checkbox.setChecked(True)
+                image_widget.front_checkbox.setChecked(True)
             elif self.front_images and not self.back_images:
-                item.image_widget.back_checkbox.setChecked(True)
+                image_widget.back_checkbox.setChecked(True)
             elif not self.front_images and self.back_images:
-                item.image_widget.front_checkbox.setChecked(True)
+                image_widget.front_checkbox.setChecked(True)
 
         self.file_list.setMinimumWidth(400)  # Adjust this value as needed
         self.update_preview()
@@ -260,7 +313,7 @@ class PostcardApp(QMainWindow):
     def update_preview(self):
         self.front_images.clear()
         self.back_images.clear()
-        for index in range(self.file_list.count()):
+        for index in range(1, self.file_list.count()):  # Start from 1 to skip header
             item = self.file_list.item(index)
             image_widget = self.file_list.itemWidget(item)
             if image_widget.front_checkbox.isChecked():
