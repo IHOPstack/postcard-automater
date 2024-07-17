@@ -8,7 +8,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.units import mm, inch
 from reportlab.lib.colors import black
 from tkinter import Tk, filedialog, simpledialog
-from config import PAPER_SIZES
+from config import get_setting
 
 def combine_pdfs(front_pdf, back_pdf, output_path):
     pdf_writer = PdfWriter()
@@ -52,9 +52,9 @@ def select_output_folder():
 def select_paper_size():
     root = Tk()
     root.withdraw()
-    sizes = list(PAPER_SIZES.keys())
+    sizes = list(get_setting('paper_sizes').keys())
     choice = simpledialog.askinteger("Paper Size", "Select paper size:\n" + "\n".join([f"{i+1}. {size}" for i, size in enumerate(sizes)]), minvalue=1, maxvalue=len(sizes))
-    return list(PAPER_SIZES.keys())[choice-1] if choice else None
+    return list(get_setting('paper_sizes').keys())[choice-1] if choice else None
 
 def calculate_optimal_layout(card_width, card_height, paper_width, paper_height, margin, min_spacing=1):
     usable_width = paper_width - 2 * margin
@@ -100,10 +100,12 @@ def create_postcard_pdf(image_path, output_pdf, paper_size_name):
         raise FileNotFoundError(f"Image file not found: {image_path}")
 
     with Image.open(image_path) as img:
-        original_card_width = img.width * 25.4 / 300
-        original_card_height = img.height * 25.4 / 300
+        DPI = get_setting('user_modifiable.default_dpi')
+        print(DPI)
+        original_card_width = img.width * 25.4 / DPI
+        original_card_height = img.height * 25.4 / DPI
 
-    paper_width, paper_height = PAPER_SIZES[paper_size_name]
+    paper_width, paper_height = get_setting('paper_sizes')[paper_size_name]
     margin = 6.35  # 0.25 inch margin in mm
 
     print(f"Paper size: {paper_width}mm x {paper_height}mm")

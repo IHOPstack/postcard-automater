@@ -1,0 +1,36 @@
+{
+    "window_size": [
+        1000,
+        600
+    ],
+    "splitter_sizes": [
+        700,
+        300
+    ],
+    "default_paper_size": "A4",
+    "margin_mm": 6.35,
+    "user_modifiable": {
+        "default_dpi": 300,
+        "preview_quality": "low",
+        "auto_select_front": false,
+        "auto_select_back": false
+    },
+    "paper_sizes": {
+        "Letter [8.5x11]": [
+            215.9,
+            279.4
+        ],
+        "A4": [
+            210,
+            297
+        ],
+        "Legal [8.5x14]": [
+            215.9,
+            355.6
+        ],
+        "A3": [
+            297,
+            420
+        ]
+    }
+}

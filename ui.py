@@ -1,15 +1,70 @@
 import os
 import tempfile
 
-from PyQt5.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QHBoxLayout, QWidget, QFileDialog, QComboBox, QLabel, QListWidget, QMessageBox, QListWidgetItem, QCheckBox, QSplitter
+from PyQt5.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QHBoxLayout, QWidget, QFileDialog, QComboBox, QLabel, QListWidget, QMessageBox, QListWidgetItem, QCheckBox, QSplitter, QAction
 from PyQt5.QtCore import Qt, QSize, pyqtSignal
-from PyQt5.QtGui import QPixmap, QImage, QPainter, QPen, QDragEnterEvent, QDropEvent
+from PyQt5.QtGui import QImage, QPainter, QDragEnterEvent, QDropEvent
 from PyQt5.QtGui import QColor, QLinearGradient, QPalette, QBrush
+from PyQt5.QtPrintSupport import QPrinter, QPrintDialog
+from PyQt5.QtGui import QPageLayout, QPageSize
+from PyQt5.QtCore import QMarginsF
+
 import fitz
 
 from app_logic import select_images, generate_pdfs, pair_pdfs_wrapper, update_preview, cleanup_temp_files, get_pdf_pixmap
 from image_operations import is_supported_image
-from config import PAPER_SIZES
+from config import get_setting, update_setting
+
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QSpinBox, QComboBox, QCheckBox, QPushButton
+from config import get_setting, update_setting
+
+class SettingsDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Settings")
+        self.layout = QVBoxLayout(self)
+
+        self.dpi_spinbox = self.create_spinbox("Default DPI:", "default_dpi", 72, 1200)
+
+        buttons_layout = QHBoxLayout()
+        save_button = QPushButton("Save")
+        save_button.clicked.connect(self.save_settings)
+        cancel_button = QPushButton("Cancel")
+        cancel_button.clicked.connect(self.reject)
+        buttons_layout.addWidget(save_button)
+        buttons_layout.addWidget(cancel_button)
+
+        self.layout.addLayout(buttons_layout)
+
+    def create_spinbox(self, label, setting_key, min_value, max_value):
+        layout = QHBoxLayout()
+        layout.addWidget(QLabel(label))
+        spinbox = QSpinBox()
+        spinbox.setRange(min_value, max_value)
+        spinbox.setValue(get_setting(f"user_modifiable.{setting_key}"))
+        layout.addWidget(spinbox)
+        self.layout.addLayout(layout)
+        return spinbox
+
+    def create_combobox(self, label, setting_key, options):
+        layout = QHBoxLayout()
+        layout.addWidget(QLabel(label))
+        combobox = QComboBox()
+        combobox.addItems(options)
+        combobox.setCurrentText(get_setting(f"user_modifiable.{setting_key}"))
+        layout.addWidget(combobox)
+        self.layout.addLayout(layout)
+        return combobox
+
+    def create_checkbox(self, label, setting_key):
+        checkbox = QCheckBox(label)
+        checkbox.setChecked(get_setting(f"user_modifiable.{setting_key}"))
+        self.layout.addWidget(checkbox)
+        return checkbox
+
+    def save_settings(self):
+        update_setting("default_dpi", self.dpi_spinbox.value())
+        self.accept()
 
 class ImageListWidget(QListWidget):
     def __init__(self, main_window, parent=None):
@@ -182,7 +237,9 @@ class PostcardApp(QMainWindow):
         self.images = []
         self.front_images = []
         self.back_images = []
+        self.setWindowTitle("Postcard Automater")
         self.temp_dir = tempfile.mkdtemp()  # Create a temporary directory
+        self.create_menu_bar()
         self.initUI()
         self.setMinimumSize(1000, 600)
         self.setAcceptDrops(True)
@@ -204,7 +261,7 @@ class PostcardApp(QMainWindow):
 
         self.select_images_button = QPushButton('Select Images')
         self.paper_size_combo = QComboBox()
-        self.paper_size_combo.addItems(list(PAPER_SIZES.keys()))
+        self.paper_size_combo.addItems(list(get_setting('paper_sizes').keys()))
         self.generate_button = QPushButton('Generate PDFs')
         self.pair_button = QPushButton('Pair PDFs')
 
@@ -238,6 +295,128 @@ class PostcardApp(QMainWindow):
 
         self.file_list.select_all_front.stateChanged.connect(self.select_all_front_images)
         self.file_list.select_all_back.stateChanged.connect(self.select_all_back_images)
+        
+    def get_or_create_temp_pdf(self, image_path):
+        # This method should return the path to the pre-generated PDF
+        # If it doesn't exist, create it
+        if image_path in self.temp_pdfs:
+            return self.temp_pdfs[image_path]
+        else:
+            temp_pdf = self.create_temp_pdf(image_path)
+            self.temp_pdfs[image_path] = temp_pdf
+            return temp_pdf
+
+    def open_settings(self):
+        dialog = SettingsDialog(self)
+        if dialog.exec_() == QDialog.Accepted:
+            self.apply_settings()
+
+    def apply_settings(self):
+        # Apply the new settings to your application
+        # For example:
+        pass
+    
+    def create_menu_bar(self):
+        menubar = self.menuBar()
+        
+        # File menu
+        file_menu = menubar.addMenu('File')
+
+        # Add 'Print' action to File menu
+        print_action = QAction('Print', self)
+        print_action.triggered.connect(self.print_document)
+        file_menu.addAction(print_action)
+
+        
+        # Add 'Select Images' action to File menu
+        select_images_action = QAction('Select Images', self)
+        select_images_action.triggered.connect(self.on_select_images)
+        file_menu.addAction(select_images_action)
+        
+        # Add 'Exit' action to File menu
+        exit_action = QAction('Exit', self)
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+
+        # Tools menu
+        tools_menu = menubar.addMenu('Tools')
+        
+        # Add 'Generate PDFs' action to Tools menu
+        generate_pdfs_action = QAction('Generate PDFs', self)
+        generate_pdfs_action.triggered.connect(self.on_generate_pdfs)
+        tools_menu.addAction(generate_pdfs_action)
+        
+        # Add 'Pair PDFs' action to Tools menu
+        pair_pdfs_action = QAction('Pair PDFs', self)
+        pair_pdfs_action.triggered.connect(self.on_pair_pdfs)
+        tools_menu.addAction(pair_pdfs_action)
+
+        # Settings menu
+        settings_menu = menubar.addMenu('Settings')
+        
+        # Add 'Open Settings' action to Settings menu
+        open_settings_action = QAction('Open Settings', self)
+        open_settings_action.triggered.connect(self.open_settings)
+        settings_menu.addAction(open_settings_action)
+        
+    def print_document(self):
+        if not self.front_images or not self.back_images:
+            QMessageBox.warning(self, "Printing Error", "Both front and back images are required for printing.")
+            return
+
+        printer = QPrinter(QPrinter.HighResolution)
+        dialog = QPrintDialog(printer, self)
+        
+        if dialog.exec_() == QPrintDialog.Accepted:
+            self.handle_printing(printer)
+
+    def handle_printing(self, printer):
+        if not self.front_images or not self.back_images:
+            QMessageBox.warning(self, "Printing Error", "Both front and back images are required for printing.")
+            return
+
+        # Set up the printer
+        layout = QPageLayout()
+        layout.setPageSize(QPageSize(QPageSize.A4))
+        layout.setOrientation(QPageLayout.Portrait)
+        layout.setMargins(QMarginsF(0, 0, 0, 0))
+        printer.setPageLayout(layout)
+
+        # Ask user to select the directory where paired PDFs are saved
+        output_dir = QFileDialog.getExistingDirectory(self, "Select Directory with Paired PDFs")
+        if not output_dir:
+            return  # User cancelled the operation
+
+        paired_pdfs = [os.path.join(output_dir, f) for f in os.listdir(output_dir) if f.endswith('.pdf')]
+
+        if not paired_pdfs:
+            QMessageBox.warning(self, "Printing Error", "No PDFs were found in the selected directory.")
+            return
+
+        painter = QPainter()
+        if not painter.begin(printer):
+            QMessageBox.warning(self, "Printing Error", "Could not start printing process.")
+            return
+
+        try:
+            for pdf_path in paired_pdfs:
+                doc = fitz.open(pdf_path)
+                for page_num in range(len(doc)):
+                    if page_num > 0:
+                        printer.newPage()
+                    
+                    page = doc.load_page(page_num)
+                    pix = page.get_pixmap()
+                    img = QImage(pix.samples, pix.width, pix.height, pix.stride, QImage.Format_RGB888)
+                    
+                    # Draw the image on the full page
+                    painter.drawImage(printer.pageRect(QPrinter.DevicePixel), img)
+                
+                doc.close()
+        finally:
+            painter.end()
+
+        QMessageBox.information(self, "Printing", "Printing completed successfully.")
 
     def on_select_images(self):
         new_images = select_images(self)
