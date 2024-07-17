@@ -6,8 +6,8 @@ from PyQt5.QtGui import QPixmap, QImage, QPainter, QPen
 from PyQt5.QtCore import Qt
 import fitz
 
-from image_operations import is_supported_image
-from pdf_operations import create_postcard_pdf, pair_pdfs
+from business_logic.image_operations import is_supported_image
+from business_logic.pdf_operations import create_postcard_pdf, pair_pdfs
 
 def select_images(parent_widget):
     files, _ = QFileDialog.getOpenFileNames(parent_widget, "Select Images", "", "Image Files (*.png *.jpg *.bmp)")

@@ -1,7 +1,7 @@
 import os
 import tempfile
 
-from PyQt5.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QHBoxLayout, QWidget, QFileDialog, QComboBox, QLabel, QListWidget, QMessageBox, QListWidgetItem, QCheckBox, QSplitter, QAction
+from PyQt5.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QHBoxLayout, QWidget, QFileDialog, QComboBox, QLabel, QMessageBox, QListWidgetItem, QCheckBox, QSplitter, QAction
 from PyQt5.QtCore import Qt, QMarginsF
 from PyQt5.QtGui import QImage, QPainter
 from PyQt5.QtPrintSupport import QPrinter, QPrintDialog
@@ -9,7 +9,7 @@ from PyQt5.QtGui import QPageLayout, QPageSize
 
 import fitz
 
-from app_logic import select_images, generate_pdfs, pair_pdfs_wrapper, update_preview, cleanup_temp_files, get_pdf_pixmap
+from UI.view_logic import select_images, generate_pdfs, pair_pdfs_wrapper, update_preview, cleanup_temp_files, get_pdf_pixmap
 from config import get_setting
 
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton

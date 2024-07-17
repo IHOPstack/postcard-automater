@@ -1,5 +1,5 @@
 import unittest
-from pdf_operations import calculate_optimal_layout
+from business_logic.pdf_operations import calculate_optimal_layout
 
 class TestCalculateOptimalLayout(unittest.TestCase):
     def test_calculate_optimal_layout(self):

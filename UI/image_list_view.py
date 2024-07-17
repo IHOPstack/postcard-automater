@@ -9,7 +9,7 @@ from PyQt5.QtPrintSupport import QPrinter, QPrintDialog
 from PyQt5.QtGui import QPageLayout, QPageSize
 from PyQt5.QtCore import QMarginsF
 
-from image_operations import is_supported_image
+from business_logic.image_operations import is_supported_image
 
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QSpinBox, QComboBox, QCheckBox, QPushButton
 
