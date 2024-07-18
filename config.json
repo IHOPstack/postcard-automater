@@ -13,7 +13,8 @@
         "default_dpi": 300,
         "preview_quality": "low",
         "auto_select_front": false,
-        "auto_select_back": false
+        "auto_select_back": false,
+        "persist_files": true
     },
     "paper_sizes": {
         "Letter [8.5x11]": [
@@ -32,5 +33,6 @@
             297,
             420
         ]
-    }
+    },
+    "persisted_files": []
 }

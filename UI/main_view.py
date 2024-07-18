@@ -18,6 +18,7 @@ from config import get_setting
 from UI.settings_view import SettingsDialog
 from UI.image_list_view import ImageListWidget
 from UI.pdf_view import PdfPreviewWidget
+from UI.file_controller import FileManager
 
 class PostcardApp(QMainWindow):
     def __init__(self):
@@ -25,12 +26,14 @@ class PostcardApp(QMainWindow):
         self.images = []
         self.front_images = []
         self.back_images = []
+        self.file_manager = FileManager(self)
         self.setWindowTitle("Postcard Automater")
         self.temp_dir = tempfile.mkdtemp()  # Create a temporary directory
         self.create_menu_bar()
         self.initUI()
         self.setMinimumSize(1000, 600)
         self.setAcceptDrops(True)
+        self.file_manager.load_persisted_files()
 
     def initUI(self):
         self.setWindowTitle('Postcard Printer')
@@ -208,73 +211,44 @@ class PostcardApp(QMainWindow):
 
     def on_select_images(self):
         new_images = select_images(self)
-        self.images.extend(new_images)
-        self.update_file_list()
+        self.file_manager.add_files(new_images)
+        self.update_preview()
 
     def on_generate_pdfs(self):
         paper_size = self.paper_size_combo.currentText()
-        generate_pdfs(self.images, paper_size, self)
+        generate_pdfs(self.file_manager.files, paper_size, self)
 
     def on_pair_pdfs(self):
-        if not self.front_images or not self.back_images:
+        front_images, back_images = self.file_manager.get_selected_images()
+        if not front_images or not back_images:
             QMessageBox.warning(self, "Warning", "Both front and back images are required for pairing")
             return
         paper_size = self.paper_size_combo.currentText()
-        pair_pdfs_wrapper(self.front_images, self.back_images, paper_size, self)
+        pair_pdfs_wrapper(front_images, back_images, paper_size, self)
 
     def update_preview(self):
-        self.front_images.clear()
-        self.back_images.clear()
-        for index in range(1, self.file_list.count()):
-            item = self.file_list.item(index)
-            image_widget = self.file_list.itemWidget(item)
-            if image_widget.front_checkbox.isChecked():
-                self.front_images.append(image_widget.image_path)
-            if image_widget.back_checkbox.isChecked():
-                self.back_images.append(image_widget.image_path)
-
+        front_images, back_images = self.file_manager.get_selected_images()
         paper_size = self.paper_size_combo.currentText()
-        front_pdfs, back_pdfs = update_preview(self.front_images, self.back_images, paper_size, self.temp_dir)
+        front_pdfs, back_pdfs = update_preview(front_images, back_images, paper_size, self.temp_dir)
         self.preview_view.load_pdfs(front_pdfs, back_pdfs)
 
     def select_all_front_images(self, state):
-        for index in range(1, self.file_list.count()):
-            item = self.file_list.item(index)
-            image_widget = self.file_list.itemWidget(item)
-            image_widget.front_checkbox.setChecked(state == Qt.Checked)
+        self.file_manager.select_all_front(state == Qt.Checked)
         self.update_preview()
 
     def select_all_back_images(self, state):
-        for index in range(1, self.file_list.count()):
-            item = self.file_list.item(index)
-            image_widget = self.file_list.itemWidget(item)
-            image_widget.back_checkbox.setChecked(state == Qt.Checked)
+        self.file_manager.select_all_back(state == Qt.Checked)
         self.update_preview()
 
     def handle_file_list_drop(self, files):
-        self.images.extend(files)
-        self.update_file_list()
+        self.file_manager.add_files(files)
+        self.update_preview()
 
     def handle_preview_drop(self, files, is_front):
-        self.images.extend(files)
-        self.update_file_list(auto_select_front=is_front, auto_select_back=not is_front)
-
-    def update_file_list(self, auto_select_front=False, auto_select_back=False):
-        current_count = self.file_list.count() - 1
-        for image in self.images[current_count:]:
-            image_widget = self.file_list.add_item(image)
-            image_widget.front_checkbox.stateChanged.connect(self.update_preview)
-            image_widget.back_checkbox.stateChanged.connect(self.update_preview)
-            
-            if auto_select_front or (not self.front_images and not self.back_images):
-                image_widget.front_checkbox.setChecked(True)
-            elif auto_select_back or (self.front_images and not self.back_images):
-                image_widget.back_checkbox.setChecked(True)
-
-        self.file_list.setMinimumWidth(400)
+        self.file_manager.add_files(files, auto_select_front=is_front, auto_select_back=not is_front)
         self.update_preview()
 
     def closeEvent(self, event):
+        self.file_manager.save_persisted_files()
         cleanup_temp_files(self.temp_dir)
         super().closeEvent(event)
-

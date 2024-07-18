@@ -8,6 +8,7 @@ class SettingsDialog(QDialog):
         self.layout = QVBoxLayout(self)
 
         self.dpi_spinbox = self.create_spinbox("Default DPI:", "default_dpi", 72, 1200)
+        self.persist_files_checkbox = self.create_checkbox("Persist files between app instances", "persist_files")
 
         buttons_layout = QHBoxLayout()
         save_button = QPushButton("Save")
@@ -47,4 +48,5 @@ class SettingsDialog(QDialog):
 
     def save_settings(self):
         update_setting("default_dpi", self.dpi_spinbox.value())
+        update_setting("persist_files", self.persist_files_checkbox.isChecked())
         self.accept()
