@@ -6,7 +6,7 @@ from PyQt5.QtGui import QDragEnterEvent, QDropEvent, QColor, QBrush
 
 from business_logic.image_operations import is_supported_image
 from config import get_setting
-from .file_controller import FileManager
+from ..controllers.file_controller import FileManager
 
 
 class ImageListWidget(QListWidget):

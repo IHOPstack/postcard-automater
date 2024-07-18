@@ -9,16 +9,16 @@ from PyQt5.QtGui import QPageLayout, QPageSize
 
 import fitz
 
-from UI.view_logic import select_images, generate_pdfs, pair_pdfs_wrapper, update_preview, cleanup_temp_files, get_pdf_pixmap
+from ..controllers.view_logic import select_images, generate_pdfs, pair_pdfs_wrapper, update_preview, cleanup_temp_files, get_pdf_pixmap
 from config import get_setting
 
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton
 from config import get_setting
 
-from UI.settings_view import SettingsDialog
-from UI.image_list_view import ImageListWidget
-from UI.pdf_view import PdfPreviewWidget
-from UI.file_controller import FileManager
+from views.settings_view import SettingsDialog
+from views.image_list_view import ImageListWidget
+from views.pdf_view import PdfPreviewWidget
+from ..controllers.file_controller import FileManager
 
 class PostcardApp(QMainWindow):
     def __init__(self):

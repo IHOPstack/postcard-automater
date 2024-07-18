@@ -11,7 +11,7 @@ from PyQt5.QtCore import QMarginsF
 
 import fitz
 
-from UI.view_logic import get_pdf_pixmap
+from ..controllers.view_logic import get_pdf_pixmap
 from business_logic.image_operations import is_supported_image
 from config import get_setting, update_setting
 
