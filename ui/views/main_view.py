@@ -15,9 +15,9 @@ from config import get_setting
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton
 from config import get_setting
 
-from views.settings_view import SettingsDialog
-from views.image_list_view import ImageListWidget
-from views.pdf_view import PdfPreviewWidget
+from .settings_view import SettingsDialog
+from .image_list_view import ImageListWidget
+from .pdf_view import PdfPreviewWidget
 from ..controllers.file_controller import FileManager
 
 class PostcardApp(QMainWindow):
