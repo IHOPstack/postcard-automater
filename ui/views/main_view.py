@@ -1,5 +1,4 @@
 import os
-import tempfile
 
 from PyQt5.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QHBoxLayout, QWidget, QFileDialog, QComboBox, QLabel, QMessageBox, QListWidgetItem, QCheckBox, QSplitter, QAction
 from PyQt5.QtCore import Qt, QMarginsF
@@ -9,11 +8,10 @@ from PyQt5.QtGui import QPageLayout, QPageSize
 
 import fitz
 
-from ..controllers.view_logic import select_images, generate_pdfs, pair_pdfs_wrapper, update_preview, cleanup_temp_files, get_pdf_pixmap
+from ..controllers.view_logic import select_images, generate_pdfs, pair_pdfs_wrapper, cleanup_temp_files, get_pdf_pixmap
 from config import get_setting
 
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton
-from config import get_setting
 
 from .settings_view import SettingsDialog
 from .image_list_view import ImageListWidget
@@ -26,14 +24,12 @@ class PostcardApp(QMainWindow):
         self.images = []
         self.front_images = []
         self.back_images = []
-        self.file_manager = FileManager(self)
+        self.file_manager = FileManager()
         self.setWindowTitle("Postcard Automater")
-        self.temp_dir = tempfile.mkdtemp()  # Create a temporary directory
         self.create_menu_bar()
         self.initUI()
         self.setMinimumSize(1000, 600)
         self.setAcceptDrops(True)
-        self.file_manager.load_persisted_files()
 
     def initUI(self):
         self.setWindowTitle('Postcard Printer')
@@ -66,8 +62,8 @@ class PostcardApp(QMainWindow):
         right_widget = QWidget()
         right_layout = QVBoxLayout(right_widget)
 
-        self.preview_view = PdfPreviewWidget(main_window=self)
-        self.file_list = ImageListWidget(main_window=self)
+        self.preview_view = PdfPreviewWidget(self.file_manager, self.paper_size_combo)
+        self.file_list = ImageListWidget(self.file_manager, self.preview_view)
 
         self.splitter = QSplitter(Qt.Vertical)
         self.splitter.addWidget(self.preview_view)
@@ -82,10 +78,7 @@ class PostcardApp(QMainWindow):
         self.select_images_button.clicked.connect(self.on_select_images)
         self.generate_button.clicked.connect(self.on_generate_pdfs)
         self.pair_button.clicked.connect(self.on_pair_pdfs)
-        self.paper_size_combo.currentIndexChanged.connect(self.update_preview)
-
-        self.file_list.select_all_front.stateChanged.connect(self.select_all_front_images)
-        self.file_list.select_all_back.stateChanged.connect(self.select_all_back_images)
+        self.paper_size_combo.currentIndexChanged.connect(self.preview_view.update_preview)
         
     def get_or_create_temp_pdf(self, image_path):
         # This method should return the path to the pre-generated PDF
@@ -212,11 +205,12 @@ class PostcardApp(QMainWindow):
     def on_select_images(self):
         new_images = select_images(self)
         self.file_manager.add_files(new_images)
-        self.update_preview()
-
+        self.file_list.add_items(new_images)
+        self.preview_view.update_preview()
+    
     def on_generate_pdfs(self):
         paper_size = self.paper_size_combo.currentText()
-        generate_pdfs(self.file_manager.files, paper_size, self)
+        generate_pdfs(self.file_manager.images, paper_size, self)
 
     def on_pair_pdfs(self):
         front_images, back_images = self.file_manager.get_selected_images()
@@ -226,29 +220,25 @@ class PostcardApp(QMainWindow):
         paper_size = self.paper_size_combo.currentText()
         pair_pdfs_wrapper(front_images, back_images, paper_size, self)
 
-    def update_preview(self):
-        front_images, back_images = self.file_manager.get_selected_images()
-        paper_size = self.paper_size_combo.currentText()
-        front_pdfs, back_pdfs = update_preview(front_images, back_images, paper_size, self.temp_dir)
-        self.preview_view.load_pdfs(front_pdfs, back_pdfs)
-
     def select_all_front_images(self, state):
-        self.file_manager.select_all_front(state == Qt.Checked)
-        self.update_preview()
+        self.file_manager.select_all(state == Qt.Checked, is_front=True)
+        self.preview_view.update_preview()
 
     def select_all_back_images(self, state):
-        self.file_manager.select_all_back(state == Qt.Checked)
-        self.update_preview()
+        self.file_manager.select_all(state == Qt.Checked, is_front=False)
+        self.preview_view.update_preview()
 
     def handle_file_list_drop(self, files):
-        self.file_manager.add_files(files)
-        self.update_preview()
+       self.file_manager.add_files(files)
+       self.file_list.add_items(files)
+       self.preview_view.update_preview()
 
-    def handle_preview_drop(self, files, is_front):
-        self.file_manager.add_files(files, auto_select_front=is_front, auto_select_back=not is_front)
-        self.update_preview()
+    def handle_preview_drop(self, files):
+        self.file_manager.add_files(files)
+        self.file_list.add_items(files)
+        self.preview_view.update_preview()
 
     def closeEvent(self, event):
-        self.file_manager.save_persisted_files()
-        cleanup_temp_files(self.temp_dir)
-        super().closeEvent(event)
+       self.file_manager.save_persisted_files()
+       cleanup_temp_files(self.file_manager.temp_dir)
+       super().closeEvent(event)

@@ -12,8 +12,8 @@
     "user_modifiable": {
         "default_dpi": 300,
         "preview_quality": "low",
-        "auto_select_front": false,
-        "auto_select_back": false,
+        "auto_select_front": true,
+        "auto_select_back": true,
         "persist_files": true
     },
     "paper_sizes": {
