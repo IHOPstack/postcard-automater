@@ -1,10 +1,9 @@
 import os
 from PyQt5.QtWidgets import QHBoxLayout, QWidget, QLabel, QListWidget, QListWidgetItem, QCheckBox, QPushButton, QMenu
-from PyQt5.QtCore import Qt, QPoint
+from PyQt5.QtCore import Qt, QPoint, pyqtSignal
 from PyQt5.QtGui import QDragEnterEvent, QDropEvent, QColor, QBrush
 
 from business_logic.image_operations import is_supported_image
-from config import get_setting
 
 class ImageListWidget(QListWidget):
     def __init__(self, file_manager, pdf_preview):
@@ -18,7 +17,6 @@ class ImageListWidget(QListWidget):
         self._setup_header()
         self.add_items(persisted_files)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
-
 
     def _setup_header(self):
         header_item = QListWidgetItem(self)
@@ -42,14 +40,14 @@ class ImageListWidget(QListWidget):
         header_item.setBackground(QBrush(header_color))
         header_item.setFlags(header_item.flags() & ~Qt.ItemIsSelectable)
 
-        self.select_all_front.stateChanged.connect(lambda state: self.select_all(state, is_front=True))
-        self.select_all_back.stateChanged.connect(lambda state: self.select_all(state, is_front=False))
+        self.select_all_front.stateChanged.connect(self.select_all_front_images)
+        self.select_all_back.stateChanged.connect(self.select_all_back_images)
 
     def clear_all(self):
         self.clear()
         self._setup_header()
         self.file_manager.clear_files()
-        self.pdf_preview.update_preview()
+        self.pdf_preview.update_preview_display()
 
     def show_context_menu(self, position: QPoint):
         menu = QMenu()
@@ -63,11 +61,12 @@ class ImageListWidget(QListWidget):
             image_widget = self.itemWidget(item)
             self.file_manager.remove_file(image_widget.image_path)
             self.takeItem(self.row(item))
-            self.pdf_preview.update_preview()
+            self.pdf_preview.update_preview_display()
     
     def add_item(self, file, auto_select_front=False, auto_select_back=False):
         item = QListWidgetItem(self)
         image_widget = ImageListItem(file, self.file_manager, self.pdf_preview)
+        image_widget.checkbox_changed.connect(self.update_select_all_checkbox_state)
         
         # Set checkbox state based on FileManager's selection
         image_widget.front_checkbox.setChecked(file in self.file_manager.front_images)
@@ -75,16 +74,12 @@ class ImageListWidget(QListWidget):
         
         item.setSizeHint(image_widget.sizeHint())
         self.setItemWidget(item, image_widget)
-        self.pdf_preview.update_preview()
         return image_widget
     
     def add_items(self, files):
         for file in files:
             self.add_item(file)
-
-    def update_image_list(self, image_path, state, is_front):
-        self.file_manager.update_image_list(image_path, state == Qt.Checked, is_front)
-        self.pdf_preview.update_preview()
+        self.pdf_preview.update_preview_display()
 
     def dragEnterEvent(self, event: QDragEnterEvent):
         print("Drag enter event received in ImageListWidget")
@@ -110,13 +105,7 @@ class ImageListWidget(QListWidget):
                 self.handle_file_list_drop(event)
         else:
             super().dropEvent(event)
-    
-    def select_all(self, state, is_front):
-        is_checked = state == Qt.Checked
-        self.file_manager.select_all(is_front, is_checked)
-        self.update_all_checkboxes(is_front, is_checked)
-        self.pdf_preview.update_preview()
-        
+
     def update_all_checkboxes(self, is_front, is_checked):
         for index in range(1, self.count()):  # Start from 1 to skip header
             item = self.item(index)
@@ -127,6 +116,33 @@ class ImageListWidget(QListWidget):
                 else:
                     image_widget.back_checkbox.setChecked(is_checked)
 
+    def update_select_all_checkbox_state(self):
+        # Check if all front checkboxes are checked
+        all_front_checked = all(
+            self.itemWidget(self.item(i)).front_checkbox.isChecked()
+            for i in range(1, self.count())
+        )
+        self.select_all_front.setChecked(all_front_checked)
+
+        # Check if all back checkboxes are checked
+        all_back_checked = all(
+            self.itemWidget(self.item(i)).back_checkbox.isChecked()
+            for i in range(1, self.count())
+        )
+        self.select_all_back.setChecked(all_back_checked)
+
+    def select_all_front_images(self, state):
+        checked = state == Qt.Checked
+        self.file_manager.select_all(True, checked)
+        self.update_all_checkboxes(True, checked)
+        self.pdf_preview.update_preview_display()
+
+    def select_all_back_images(self, state):
+        checked = state == Qt.Checked
+        self.file_manager.select_all(False, checked)
+        self.update_all_checkboxes(False, checked)
+        self.pdf_preview.update_preview_display()
+
     def handle_file_list_drop(self, event):
         if event.mimeData().hasUrls():
             event.setDropAction(Qt.CopyAction)
@@ -135,12 +151,14 @@ class ImageListWidget(QListWidget):
             if files:
                 added_files = self.file_manager.add_files(files)
                 self.add_items(added_files)
-                self.pdf_preview.update_preview()
+                self.pdf_preview.update_preview_display()
 
     def dropEvent(self, event):
         self.handle_file_list_drop(event)
 
 class ImageListItem(QWidget):
+    checkbox_changed = pyqtSignal()
+
     def __init__(self, image_path, file_manager, pdf_preview):
         super().__init__()
         self.image_path = image_path
@@ -163,11 +181,9 @@ class ImageListItem(QWidget):
         self.front_checkbox.stateChanged.connect(self.on_checkbox_changed)
         self.back_checkbox.stateChanged.connect(self.on_checkbox_changed)
 
-    def update_image_list(self, state, is_front):
-        self.file_manager.update_image_list(self.image_path, state == Qt.Checked, is_front)
-
     def on_checkbox_changed(self):
         is_front = self.sender() == self.front_checkbox
         is_checked = self.sender().isChecked()
-        self.file_manager.update_image_list(self.image_path, is_checked, is_front)
-        self.pdf_preview.update_preview()
+        if self.file_manager.update_image_list(self.image_path, is_checked, is_front):
+            self.pdf_preview.update_preview_display()
+            self.checkbox_changed.emit()

@@ -35,19 +35,15 @@ def pair_pdfs_wrapper(front_images, back_images, paper_size, parent_widget):
         
         QMessageBox.information(parent_widget, "Success", f"{len(paired_pdfs)} PDFs paired successfully")
 
-def update_preview(front_images, back_images, paper_size, temp_dir):
+def create_preview_pdfs(front_images, back_images, paper_size, temp_dir):
     front_pdfs = [create_temp_pdf(img, temp_dir, paper_size, i, 'front') for i, img in enumerate(front_images)]
     back_pdfs = [create_temp_pdf(img, temp_dir, paper_size, i, 'back') for i, img in enumerate(back_images)]
     return front_pdfs, back_pdfs
 
-def create_temp_pdf(image_path, temp_dir, paper_size, index, side):
+def create_temp_pdf(image_path, temp_dir, paper_size, index, side, force_create=False):
     temp_pdf = os.path.join(temp_dir, f"{side}_{index}.pdf")
-    # Print image dimensions
-    from PIL import Image
-    with Image.open(image_path) as img:
-        print(f"Image dimensions for {side}_{index}: {img.size}")
-
-    create_postcard_pdf(image_path, temp_pdf, paper_size)
+    if force_create or not os.path.exists(temp_pdf):
+        create_postcard_pdf(image_path, temp_pdf, paper_size)
     return temp_pdf
 
 def get_pdf_pixmap(pdf_path, max_width, max_height):

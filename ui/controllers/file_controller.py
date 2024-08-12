@@ -15,15 +15,18 @@ class FileManager:
 
 
     def add_files(self, new_files):
+        added_files = []
         for file in new_files:
             if file not in self.images:
                 self.images.append(file)
+                added_files.append(file)
                 
                 # Auto-select logic
                 if not self.front_images:
                     self.front_images.append(file)
                 elif not self.back_images:
                     self.back_images.append(file)
+        return added_files
 
     def remove_file(self, file_path):
         if file_path in self.images:
@@ -37,8 +40,11 @@ class FileManager:
         target_list = self.front_images if is_front else self.back_images
         if is_checked and file_path not in target_list:
             target_list.append(file_path)
+            return True
         elif not is_checked and file_path in target_list:
             target_list.remove(file_path)
+            return True
+        return False
 
     def clear_files(self):
         self.images.clear()

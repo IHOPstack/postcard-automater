@@ -78,18 +78,8 @@ class PostcardApp(QMainWindow):
         self.select_images_button.clicked.connect(self.on_select_images)
         self.generate_button.clicked.connect(self.on_generate_pdfs)
         self.pair_button.clicked.connect(self.on_pair_pdfs)
-        self.paper_size_combo.currentIndexChanged.connect(self.preview_view.update_preview)
+        self.paper_size_combo.currentIndexChanged.connect(self.preview_view.update_preview_display)
         
-    def get_or_create_temp_pdf(self, image_path):
-        # This method should return the path to the pre-generated PDF
-        # If it doesn't exist, create it
-        if image_path in self.temp_pdfs:
-            return self.temp_pdfs[image_path]
-        else:
-            temp_pdf = self.create_temp_pdf(image_path)
-            self.temp_pdfs[image_path] = temp_pdf
-            return temp_pdf
-
     def open_settings(self):
         dialog = SettingsDialog(self)
         if dialog.exec_() == QDialog.Accepted:
@@ -206,7 +196,7 @@ class PostcardApp(QMainWindow):
         new_images = select_images(self)
         self.file_manager.add_files(new_images)
         self.file_list.add_items(new_images)
-        self.preview_view.update_preview()
+        self.preview_view.update_preview_display()
     
     def on_generate_pdfs(self):
         paper_size = self.paper_size_combo.currentText()
@@ -220,23 +210,10 @@ class PostcardApp(QMainWindow):
         paper_size = self.paper_size_combo.currentText()
         pair_pdfs_wrapper(front_images, back_images, paper_size, self)
 
-    def select_all_front_images(self, state):
-        self.file_manager.select_all(state == Qt.Checked, is_front=True)
-        self.preview_view.update_preview()
-
-    def select_all_back_images(self, state):
-        self.file_manager.select_all(state == Qt.Checked, is_front=False)
-        self.preview_view.update_preview()
-
-    def handle_file_list_drop(self, files):
-       self.file_manager.add_files(files)
-       self.file_list.add_items(files)
-       self.preview_view.update_preview()
-
     def handle_preview_drop(self, files):
         self.file_manager.add_files(files)
         self.file_list.add_items(files)
-        self.preview_view.update_preview()
+        self.preview_view.update_preview_display()
 
     def closeEvent(self, event):
        self.file_manager.save_persisted_files()
